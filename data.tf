@@ -13,6 +13,7 @@ data "azurerm_user_assigned_identity" "pod_identity_appgw" {
     azurerm_kubernetes_cluster.aks,
   ]
 }
+
 data "azurerm_user_assigned_identity" "user_identity" {
   name                = azurerm_user_assigned_identity.user_identity.name
   resource_group_name = azurerm_resource_group.aks.name
