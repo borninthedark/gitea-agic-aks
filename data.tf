@@ -7,7 +7,7 @@ data "azurerm_resource_group" "aks" {
 
 data "azurerm_user_assigned_identity" "pod_identity_appgw" {
   name                = "ingressapplicationgateway-${azurerm_kubernetes_cluster.aks.name}"
-  resource_group_name = azurerm_resource_group.aks.name
+  resource_group_name = "MC_${data.azurerm_resource_group.aks.name}_${azurerm_kubernetes_cluster.aks.name}_${var.aks_rg_suffix}"
   depends_on = [
     azurerm_resource_group.aks,
     azurerm_kubernetes_cluster.aks,
