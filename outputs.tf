@@ -21,10 +21,6 @@ output "aks_node_rg" {
   value = azurerm_kubernetes_cluster.aks.node_resource_group
 }
 
-output "cluster_egress_ip" {
-  value = data.azurerm_public_ip.publicIP.ip_address
-}
-
 output "myworkload_identity_client_id" {
   description = "The client ID of the created managed identity to use for the annotation 'azure.workload.identity/client-id' on your service account"
   value       = azurerm_user_assigned_identity.user_identity.client_id

@@ -2,13 +2,13 @@
 locals {
   gitea_ingress                  = "ingress/ingress.yml"
   clusterissuer                  = "certmgr-deploy/ci-nginx.yml"
-  backend_address_pool_name      = "${azurerm_virtual_network.vnet.name}-beap"
-  frontend_port_name             = "${azurerm_virtual_network.vnet.name}-feport"
-  frontend_ip_configuration_name = "${azurerm_virtual_network.vnet.name}-feip"
-  http_setting_name              = "${azurerm_virtual_network.vnet.name}-be-htst"
-  listener_name                  = "${azurerm_virtual_network.vnet.name}-httplstn"
-  request_routing_rule_name      = "${azurerm_virtual_network.vnet.name}-rqrt"
-  redirect_configuration_name    = "${azurerm_virtual_network.vnet.name}-rdrcfg"
+  backend_address_pool_name      = "${azurerm_virtual_network.aks.name}-beap"
+  frontend_port_name             = "${azurerm_virtual_network.aks.name}-feport"
+  frontend_ip_configuration_name = "${azurerm_virtual_network.aks.name}-feip"
+  http_setting_name              = "${azurerm_virtual_network.aks.name}-be-htst"
+  listener_name                  = "${azurerm_virtual_network.aks.name}-httplstn"
+  request_routing_rule_name      = "${azurerm_virtual_network.aks.name}-rqrt"
+  redirect_configuration_name    = "${azurerm_virtual_network.aks.name}-rdrcfg"
 }
 
 variable "location" {
@@ -19,6 +19,11 @@ variable "location" {
 variable "kubernetes_version" {
   type        = string
   description = "Kubernetes version"
+}
+
+variable "public_ssh_key_path" {
+  description = "Public key path for SSH."
+  type        = string
 }
 
 variable "system_node_count" {
@@ -61,12 +66,8 @@ variable "environment" {
   description = "The environment of the resources."
 }
 
-variable "node_resource_group" {
+variable "aks_rg_suffix" {
   type        = string
-  description = "The RG where the node pool resources are provisioned."
+  description = "The environment of the resources."
 }
 
-variable "appgtw_ip_name" {
-  type        = string
-  description = "The name of the appgtw ip resource."
-}
