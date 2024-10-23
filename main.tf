@@ -1,121 +1,94 @@
 resource "azurerm_resource_group" "aks" {
-  name     = "${var.prefix}-aks-rg"
+  name     = "${var.prefix}-rg"
   location = var.location
 }
 
-###############################################################################
-
-#Virtual Networks
-
-resource "azurerm_virtual_network" "aks" {
-  name                = "${var.prefix}-aks-vnet"
+#############################################################################
+resource "azurerm_virtual_network" "vnet" {
+  name                = "${var.prefix}-vnet"
+  address_space       = ["10.10.0.0/16"]
   location            = azurerm_resource_group.aks.location
   resource_group_name = azurerm_resource_group.aks.name
-  address_space       = ["10.0.0.0/16"]
 }
 
-resource "azurerm_subnet" "aks" {
-  name                 = "${var.prefix}-aks-subnet"
+resource "azurerm_subnet" "default_sn" {
+  name                 = "${var.prefix}-sn"
   resource_group_name  = azurerm_resource_group.aks.name
-  address_prefixes     = ["10.0.1.0/24"]
-  virtual_network_name = azurerm_virtual_network.aks.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.10.10.0/24"]
 }
 
-resource "azurerm_virtual_network" "appgw" {
-  name                = "${var.prefix}-appgw-vnet"
+resource "azurerm_subnet" "aks_sn" {
+  name                 = "${var.prefix}-aks-sn"
+  resource_group_name  = azurerm_resource_group.aks.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.10.20.0/24"]
+}
+
+resource "azurerm_public_ip" "appgw_public_ip" {
+  name                = "${var.prefix}-appgw-public-ip"
   location            = azurerm_resource_group.aks.location
   resource_group_name = azurerm_resource_group.aks.name
-  address_space       = ["10.254.0.0/16"]
-}
-resource "azurerm_subnet" "frontend" {
-  name                 = "${var.prefix}-frontend"
-  resource_group_name  = azurerm_resource_group.aks.name
-  virtual_network_name = azurerm_virtual_network.appgw.name
-  address_prefixes     = ["10.254.0.0/24"]
-}
-resource "azurerm_subnet" "backend" {
-  name                 = "${var.prefix}-backend"
-  resource_group_name  = azurerm_resource_group.aks.name
-  virtual_network_name = azurerm_virtual_network.appgw.name
-  address_prefixes     = ["10.254.2.0/24"]
-}
-resource "azurerm_public_ip" "frontend-publicIP" {
-  name                = "${var.prefix}-pip"
-  resource_group_name = azurerm_resource_group.aks.name
-  location            = azurerm_resource_group.aks.location
   allocation_method   = "Static"
+  sku                 = "Standard"
 }
-
-###########################################################################
-
-# AppGw to AKS
-resource "azurerm_virtual_network_peering" "appgw_aks_peering" {
-  name                      = "${var.prefix}-appgw-aks-peer"
-  resource_group_name       = data.azurerm_resource_group.aks.name
-  virtual_network_name      = data.azurerm_virtual_network.appgw.id
-  remote_virtual_network_id = data.azurerm_virtual_network.aks.id
-}
-
-# AKS to AppGw
-resource "azurerm_virtual_network_peering" "aks_appgw_peering" {
-  name                      = "${var.prefix}-aks-appgw-peer"
-  resource_group_name       = data.azurerm_resource_group.aks.name
-  virtual_network_name      = data.azurerm_virtual_network.aks.id
-  remote_virtual_network_id = data.azurerm_virtual_network.appgw.id
-}
-
 
 #################################################################################
 
-resource "azurerm_application_gateway" "network" {
-  name                = "${var.prefix}-appgateway"
-  resource_group_name = azurerm_resource_group.aks.name
+resource "azurerm_application_gateway" "appgw" {
+  name                = "${var.prefix}-appgw"
   location            = azurerm_resource_group.aks.location
+  resource_group_name = azurerm_resource_group.aks.name
 
   sku {
     name     = "Standard_v2"
     tier     = "Standard_v2"
     capacity = 2
   }
+
   gateway_ip_configuration {
-    name      = "${var.prefix}-gateway-ip-configuration"
-    subnet_id = azurerm_subnet.frontend.id
+    name      = "appgw-ip-configuration"
+    subnet_id = azurerm_subnet.default_sn.id
   }
+
+  frontend_ip_configuration {
+    name                 = "appgw-front-end-ip"
+    public_ip_address_id = azurerm_public_ip.appgw_public_ip.id
+  }
+
   frontend_port {
-    name = local.frontend_port_name
+    name = "http"
     port = 80
   }
-  frontend_ip_configuration {
-    name                 = local.frontend_ip_configuration_name
-    public_ip_address_id = azurerm_public_ip.frontend-publicIP.id
-  }
+
   backend_address_pool {
-    name = local.backend_address_pool_name
+    name = "appgw-backend-pool"
   }
+
   backend_http_settings {
-    name                  = local.http_setting_name
+    name                  = "appgw-http-settings"
     cookie_based_affinity = "Disabled"
-    path                  = "/"
-    port                  = 3000
+    port                  = 80
     protocol              = "Http"
-    request_timeout       = var.dns_ttl
+    request_timeout       = 60
   }
+
   http_listener {
-    name                           = local.listener_name
-    frontend_ip_configuration_name = local.frontend_ip_configuration_name
-    frontend_port_name             = local.frontend_port_name
+    name                           = "appgw-listener"
+    frontend_ip_configuration_name = "appgw-front-end-ip"
+    frontend_port_name             = "http"
     protocol                       = "Http"
   }
+
   request_routing_rule {
-    name                       = local.request_routing_rule_name
-    priority                   = 9
+    name                       = "appgw-rule"
     rule_type                  = "Basic"
-    http_listener_name         = local.listener_name
-    backend_address_pool_name  = local.backend_address_pool_name
-    backend_http_settings_name = local.http_setting_name
+    http_listener_name         = "appgw-listener"
+    backend_address_pool_name  = "appgw-backend-pool"
+    backend_http_settings_name = "appgw-http-settings"
+    priority                   = 100 # Added priority
   }
 }
-
 
 #################################################################################
 
@@ -127,9 +100,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled       = true
   resource_group_name       = azurerm_resource_group.aks.name
   dns_prefix                = "${var.prefix}-aks-cluster"
-  node_resource_group       = data.azurerm_resource_group.aks.name
+  # node_resource_group       = "MC_${data.azurerm_resource_group.rg.name}_${azurerm_kubernetes_cluster.aks.name}_${var.aks_rg_suffix}"
   ingress_application_gateway {
-    gateway_id = azurerm_application_gateway.network.id
+    gateway_id = azurerm_application_gateway.appgw.id
   }
 
   default_node_pool {
@@ -137,7 +110,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     node_count     = var.system_node_count
     vm_size        = "Standard_B2s"
     type           = "VirtualMachineScaleSets"
-    vnet_subnet_id = azurerm_subnet.aks.id
+    vnet_subnet_id = azurerm_subnet.aks_sn.id
   }
 
   linux_profile {
@@ -157,8 +130,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   network_profile {
-    load_balancer_sku = "standard"
     network_plugin    = "kubenet"
+    load_balancer_sku = "standard"
+    service_cidr      = "10.10.40.0/24"
+    dns_service_ip    = "10.10.40.10" # Added to match service_cidr
   }
 }
 
@@ -285,7 +260,7 @@ resource "azurerm_role_assignment" "identity_aks_netcontributor_ra" {
 
 # Give the AKS identity Network Contributor access to the APPGW resource group for a peering.   
 resource "azurerm_role_assignment" "identity_aks_appgtw_netcontributor_ra" {
-  scope                = data.azurerm_application_gateway.network.id
+  scope                = azurerm_application_gateway.appgw.id
   role_definition_name = "Network Contributor"
   principal_id         = data.azurerm_user_assigned_identity.user_identity.principal_id
   # skip_service_principal_aad_check = true
@@ -313,7 +288,7 @@ resource "azurerm_dns_a_record" "alias" {
   zone_name           = azurerm_dns_zone.zone.name
   resource_group_name = azurerm_resource_group.aks.name
   ttl                 = var.dns_ttl
-  target_resource_id  = data.azurerm_public_ip.publicIP.id
+  target_resource_id  = azurerm_public_ip.appgw_public_ip.id
 }
 
 resource "azurerm_dns_cname_record" "gitea" {
