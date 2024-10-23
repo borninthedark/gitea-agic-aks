@@ -39,4 +39,4 @@ terraform.rc
 retake.ds9
 
 # Ignore Scratchpad Dir
-scratchpad/
+scratchpad/*

@@ -68,7 +68,7 @@ resource "azurerm_application_gateway" "appgw" {
   backend_http_settings {
     name                  = "appgw-http-settings"
     cookie_based_affinity = "Disabled"
-    port                  = 80
+    port                  = 3000
     protocol              = "Http"
     request_timeout       = 60
   }
