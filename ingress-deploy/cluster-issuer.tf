@@ -21,6 +21,9 @@ resource "kubernetes_manifest" "clusterissuer_letsencrypt_staging" {
         "solvers" : [
           {
             "dns01" : {
+              "Ingress" : {
+                "Class" : "azure/application-gateway"
+              }
               "azureDNS" : {
                 "hostedZoneName" : azurerm_dns_zone.zone.name
                 "resourceGroupName" : azurerm_resource_group.aks.name,

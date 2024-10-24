@@ -33,6 +33,29 @@ resource "azurerm_public_ip" "appgw_public_ip" {
   sku                 = "Standard"
 }
 
+resource "azurerm_network_security_group" "acme-solver" {
+  name                = "acme-solver"
+  location            = azurerm_resource_group.aks.location
+  resource_group_name = azurerm_resource_group.aks.name
+
+  security_rule {
+    name                       = "dns-solver"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  tags = {
+    environment = var.environment
+  }
+}
+
+
 #################################################################################
 
 resource "azurerm_application_gateway" "appgw" {
@@ -206,17 +229,17 @@ resource "helm_release" "gitea" {
 
 resource "azurerm_user_assigned_identity" "user_identity" {
   location            = azurerm_resource_group.aks.location
-  name                = "${var.prefix}-identity"
+  name                = "${var.prefix}-user-identity"
   resource_group_name = azurerm_resource_group.aks.name
 }
 
 resource "azurerm_federated_identity_credential" "workload_identity" {
-  name                = azurerm_user_assigned_identity.user_identity.name
-  resource_group_name = azurerm_user_assigned_identity.user_identity.resource_group_name
+  name                = "${var.prefix}-fed-identity"
+  resource_group_name = azurerm_resource_group.aks.name
   parent_id           = azurerm_user_assigned_identity.user_identity.id
   audience            = ["api://AzureADTokenExchange"]
   issuer              = azurerm_kubernetes_cluster.aks.oidc_issuer_url
-  subject             = "gitea"
+  subject             = "system:serviceaccount:${var.workload_sa_namespace}:${var.workload_sa_name}"
 }
 
 resource "azurerm_role_assignment" "role_assignment" {
@@ -240,6 +263,22 @@ resource "azurerm_role_assignment" "dns_contributor" {
   scope                = azurerm_dns_zone.zone.id
   role_definition_name = "DNS Zone Contributor"
   principal_id         = azurerm_user_assigned_identity.user_identity.principal_id
+}
+
+resource "azurerm_role_assignment" "identity_appgw_contributor_ra" {
+  scope                = azurerm_application_gateway.appgw.id
+  role_definition_name = "Contributor"
+  principal_id         = data.azurerm_user_assigned_identity.pod_identity_appgw.principal_id
+  # skip_service_principal_aad_check = true
+  lifecycle {
+    ignore_changes = [
+      skip_service_principal_aad_check,
+    ]
+  }
+  depends_on = [
+    azurerm_kubernetes_cluster.aks,
+    azurerm_application_gateway.appgw
+  ]
 }
 
 # Give the APPGW identity Network Contributor access to the AKS cluster resource group for a peering.   

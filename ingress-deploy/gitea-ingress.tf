@@ -13,6 +13,7 @@ resource "kubernetes_manifest" "gitea_ingress" {
       "annotations" : {
         "kubernetes.io/ingress.class" : "azure/application-gateway"
         "cert-manager.io/cluster-issuer" : "letsencrypt-staging",
+        "appgw.ingress.kubernetes.io/backend-path-prefix" : "/",
         "appgw.ingress.kubernetes.io/ssl-redirect" : "true",
         "cert-manager.io/acme-challenge-type" : "dns01"
       }
@@ -21,7 +22,7 @@ resource "kubernetes_manifest" "gitea_ingress" {
       "tls" : [
         {
           "hosts" : [
-            "gitea.skypirate.cloud"
+            "gitea.skypirate.cloud",
           ],
           "secretName" : "gitea-tls-secret",
         }
